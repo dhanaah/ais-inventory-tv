@@ -1,8 +1,11 @@
 package com.aisglass.inventorytv;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -22,6 +25,7 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.List;
 
@@ -45,6 +49,8 @@ public class SetupActivity extends Activity {
     private TextView info;
     private CheckBox keep;
     private Button findBtn;
+    /** One-time "finish setup" guide: 0 = not running, 1 = permission page opened, 2 = Home page opened. */
+    private int guideStep = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -138,6 +144,8 @@ public class SetupActivity extends Activity {
         super.onResume();
         sOpen = true;
         refreshInfo();
+        // Back from a TV settings page opened by the guide -> next step.
+        if (guideStep > 0) field.postDelayed(this::continueGuide, 500);
     }
 
     @Override
@@ -154,7 +162,70 @@ public class SetupActivity extends Activity {
         String p = Prefs.paused(this) ? "  ·  auto-return PAUSED" : "";
         info.setText("This TV: " + (ip.isEmpty() ? "no network!" : ip)
                 + "   ·   Android " + Build.VERSION.RELEASE
-                + "   ·   auto-return permission: " + ov + p);
+                + "   ·   auto-return: " + ov
+                + "   ·   Home app: " + (isHomeApp() ? "yes" : "no") + p);
+    }
+
+    private boolean needsOverlay() {
+        return Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this);
+    }
+
+    /** true if AIS Inventory TV is the TV's default Home app. */
+    private boolean isHomeApp() {
+        try {
+            ResolveInfo ri = getPackageManager().resolveActivity(
+                    new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+                    PackageManager.MATCH_DEFAULT_ONLY);
+            return ri != null && ri.activityInfo != null
+                    && getPackageName().equals(ri.activityInfo.packageName);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    // ------------------------------------------- one-time finish-setup guide ---
+    // Android does not let any app switch on "Display over other apps" or become
+    // the Home app during installation - the TV owner must allow it once. So right
+    // after the first "Save & start" the app opens each setting for you in turn.
+
+    private void showGuide() {
+        String ov = needsOverlay() ? "✗" : "✓";
+        String hm = isHomeApp() ? "✓" : "✗";
+        AlertDialog d = new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Last step - one time only")
+                .setMessage("So the dashboard never gets stuck on the TV Home screen, allow these two "
+                        + "TV settings:\n\n"
+                        + ov + "   Display over other apps  (dashboard comes back by itself)\n"
+                        + hm + "   AIS Inventory TV as the Home app\n\n"
+                        + "Press \"Do it now\": the TV opens each setting - switch it ON / choose "
+                        + "AIS Inventory TV, then press BACK. The app continues by itself.")
+                .setPositiveButton("Do it now", (dlg, w) -> { guideStep = 0; continueGuide(); })
+                .setNegativeButton("Later", (dlg, w) -> startDashboard())
+                .setCancelable(false)
+                .create();
+        d.show();
+        d.getButton(AlertDialog.BUTTON_POSITIVE).requestFocus();
+    }
+
+    private void continueGuide() {
+        if (guideStep < 1 && needsOverlay()) {
+            guideStep = 1;
+            if (openOverlayPermission()) return;          // TV opened the permission page
+        }
+        if (guideStep < 2 && !isHomeApp()) {
+            guideStep = 2;
+            openHomeSettings();
+            return;
+        }
+        guideStep = 0;
+        Prefs.setGuideDone(this, true);
+        String left = (needsOverlay() ? "\"Display over other apps\" is still OFF. " : "")
+                + (isHomeApp() ? "" : "Not set as the Home app. ");
+        Toast.makeText(this, left.isEmpty()
+                        ? "All set ✓ - the dashboard will stay on screen."
+                        : left + "You can do it later from Setup.",
+                Toast.LENGTH_LONG).show();
+        startDashboard();
     }
 
     // ------------------------------------------------------------- actions ---
@@ -227,6 +298,16 @@ public class SetupActivity extends Activity {
         Prefs.setKeepFront(this, keep.isChecked());
         Prefs.pauseFor(this, 0);              // saving resumes auto-return
         if (keep.isChecked()) KeepFrontService.start(this);
+        // First time (or still incomplete): walk through the two one-time TV settings.
+        if (!Prefs.guideDone(this) && (needsOverlay() || !isHomeApp())) {
+            showGuide();
+            return;
+        }
+        startDashboard();
+    }
+
+    private void startDashboard() {
+        Prefs.pauseFor(this, 0);
         startActivity(new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
         finish();
@@ -243,14 +324,15 @@ public class SetupActivity extends Activity {
         }
     }
 
-    private void openOverlayPermission() {
+    /** Opens the "Display over other apps" page. Returns true if the TV opened it. */
+    private boolean openOverlayPermission() {
         if (Build.VERSION.SDK_INT < 23) {
             status.setText("✓ Not needed on this TV - auto-return already works.");
-            return;
+            return false;
         }
         if (Settings.canDrawOverlays(this)) {
             status.setText("✓ Auto-return is already allowed on this TV.");
-            return;
+            return false;
         }
         Prefs.pauseFor(this, PAUSE_MS);
         status.setText("Turn ON  \"Display over other apps\"  for AIS Inventory TV, then press BACK.");
@@ -259,7 +341,9 @@ public class SetupActivity extends Activity {
             status.setText("This TV hides that setting. IT can enable it once with:\n"
                     + "adb shell appops set " + getPackageName() + " SYSTEM_ALERT_WINDOW allow\n"
                     + "(or simply set the app as the TV Home app).");
+            return false;
         }
+        return true;
     }
 
     private void pause() {

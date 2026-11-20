@@ -12,8 +12,8 @@ android {
         applicationId 'com.aisglass.inventorytv'
         minSdk 21            // Android TV 5.0 and newer
         targetSdk 30         // side-loaded kiosk app (not Play Store)
-        versionCode 1        // +1 for every new release
-        versionName '1.0.0'  // keep in step with Prefs.VERSION
+        versionCode 2        // +1 for every new release
+        versionName '1.0.1'  // keep in step with Prefs.VERSION
     }
 
     // ONE fixed RYZ Systems signing key, so every new build installs as an

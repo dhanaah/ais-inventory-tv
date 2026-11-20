@@ -11,7 +11,7 @@ import java.net.URL;
  */
 final class Prefs {
     /** App version - keep in step with versionName in app/build.gradle. */
-    static final String VERSION = "1.0.0";
+    static final String VERSION = "1.0.1";
     static final String SIGNATURE = "Developed by RYZ Systems";
     static final int DEFAULT_PORT = 8080;
 
@@ -35,6 +35,10 @@ final class Prefs {
         sp(c).edit().putLong("pauseUntil", ms <= 0 ? 0L : System.currentTimeMillis() + ms).apply();
     }
     static boolean paused(Context c) { return System.currentTimeMillis() < pauseUntil(c); }
+
+    /** The one-time "finish setup" guide (permission + Home app) has been completed or skipped. */
+    static boolean guideDone(Context c) { return sp(c).getBoolean("guideDone", false); }
+    static void setGuideDone(Context c, boolean v) { sp(c).edit().putBoolean("guideDone", v).apply(); }
 
     /**
      * Turns whatever was typed into a full dashboard URL:

@@ -14,6 +14,14 @@
     <!-- lets the watchdog bring the dashboard back to the front on Android 10+ -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- lets Setup check whether this app is currently the TV's Home app -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+    </queries>
+
     <!-- Runs on Android TV boxes/TVs, but also installs on phones/tablets -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
