@@ -1,5 +1,5 @@
 ===============================================================
- AIS Inventory TV  -  Android TV app  (v1.0.0)
+ AIS Inventory TV  -  Android TV app  (v1.0.1)
  Build + install guide            Developed by RYZ Systems
 ===============================================================
 
