@@ -1,0 +1,54 @@
+// AIS Inventory TV - Android TV kiosk app. Developed by RYZ Systems.
+// No third-party libraries: plain Android + WebView, so the build is small and fast.
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.aisglass.inventorytv'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.aisglass.inventorytv'
+        minSdk 21            // Android TV 5.0 and newer
+        targetSdk 30         // side-loaded kiosk app (not Play Store)
+        versionCode 1        // +1 for every new release
+        versionName '1.0.0'  // keep in step with Prefs.VERSION
+    }
+
+    // ONE fixed RYZ Systems signing key, so every new build installs as an
+    // UPDATE over the previous one (no uninstall needed on the TVs).
+    // Keep ryz-release.keystore safe - losing it means TVs must uninstall once.
+    signingConfigs {
+        ryz {
+            storeFile file('ryz-release.keystore')
+            storePassword 'ryzsystems'
+            keyAlias 'ryz'
+            keyPassword 'ryzsystems'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.ryz
+        }
+        debug {
+            signingConfig signingConfigs.ryz
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
